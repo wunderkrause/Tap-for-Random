@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tap for Random</title>
+    <!-- 3. Custom Favicon -->
+    <link rel="icon" type="image/png" href="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6fFE5kS4ZztLqETZX3XqccPkkCG5I6amIzQ&s">
     <style>
         :root {
             --background-color: #1a1a1d;
@@ -25,20 +27,17 @@
             color: var(--text-color);
             padding: 20px;
             box-sizing: border-box;
-            /* Re-apply centering to the body itself */
             display: flex;
             justify-content: center;
             align-items: center;
         }
         
-        /* The container now manages the internal layout */
         .container {
             text-align: center;
             max-width: 500px;
             width: 100%;
-            /* Set a max-height relative to the viewport, allowing it to be centered */
             max-height: 95vh; 
-            height: 800px; /* Provide a large default height for desktops */
+            height: 800px;
             display: flex;
             flex-direction: column;
         }
@@ -46,7 +45,7 @@
         .card-display {
             position: relative;
             width: 100%;
-            flex-grow: 1; /* Key to preventing overlap: takes all remaining space */
+            flex-grow: 1; 
             display: flex;
             justify-content: center;
             min-height: 250px;
@@ -117,16 +116,29 @@
             border-radius: 15px;
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
             display: none;
+            cursor: pointer; /* 2. Click Card to Refresh: Add pointer cursor */
         }
         
-        #card-info a {
+        #card-info a, #card-info p {
             color: var(--link-color);
             text-decoration: none;
             font-size: 1.1rem;
+            margin: 4px 0;
         }
 
         #card-info a:hover {
             text-decoration: underline;
+        }
+
+        #flip-btn {
+            background-color: var(--card-background);
+            color: var(--link-color);
+            border: 1px solid var(--link-color);
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            margin-top: 5px;
+            display: none; /* Hidden by default */
         }
 
         #error-message {
@@ -150,6 +162,17 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* 1. Fade-In Animation */
+        .fade-in {
+            animation: fadeInAnimation 0.5s ease-in;
+        }
+
+        @keyframes fadeInAnimation {
+            from { opacity: 0; }
+            to   { opacity: 1; }
+        }
+
 
         @media (max-width: 480px) {
             h1 {
@@ -177,7 +200,9 @@
             <div class="loader" id="loader"></div>
             <div id="error-message"></div>
             <img id="card-image" src="" alt="Magic Card">
-            <div id="card-info"></div>
+            <div id="card-info">
+                <button id="flip-btn">Flip</button>
+            </div>
         </div>
     </div>
 
@@ -187,25 +212,29 @@
         const cardInfo = document.getElementById('card-info');
         const loader = document.getElementById('loader');
         const errorMessage = document.getElementById('error-message');
+        const flipBtn = document.getElementById('flip-btn');
+
+        let isFrontFace = true; // State for the flip card
 
         async function fetchRandomCard() {
             loader.style.display = 'block';
             errorMessage.style.display = 'none';
             cardImage.style.display = 'none';
-            cardInfo.innerHTML = '';
+            cardImage.classList.remove('fade-in'); // Remove animation class for reset
+            flipBtn.style.display = 'none'; // Hide flip button by default
+            
+            // Clear previous card info, but keep the flip button in the DOM
+            while (cardInfo.firstChild && cardInfo.firstChild !== flipBtn) {
+                cardInfo.removeChild(cardInfo.firstChild);
+            }
             
             const apiUrl = 'https://api.scryfall.com/cards/random';
             
             try {
                 const response = await fetch(apiUrl);
-                
-                if (!response.ok) {
-                    throw new Error(`Scryfall API Error: ${response.statusText}`);
-                }
-                
+                if (!response.ok) throw new Error(`Scryfall API Error: ${response.statusText}`);
                 const cardData = await response.json();
                 displayCard(cardData);
-
             } catch (error) {
                 console.error("Failed to fetch card:", error);
                 displayError(error.message);
@@ -215,21 +244,45 @@
         }
 
         function displayCard(cardData) {
-            let imageUrl = '';
+            let frontImageUrl, backImageUrl;
+
+            // 5. Flip Button Logic: Check for multiple faces
             if (cardData.card_faces && cardData.card_faces[0].image_uris) {
-                imageUrl = cardData.card_faces[0].image_uris.normal;
+                frontImageUrl = cardData.card_faces[0].image_uris.normal;
+                backImageUrl = cardData.card_faces[1].image_uris.normal;
+                flipBtn.style.display = 'inline-block'; // Show the button
+                isFrontFace = true; // Reset to front face
             } else if (cardData.image_uris) {
-                imageUrl = cardData.image_uris.normal;
+                frontImageUrl = cardData.image_uris.normal;
             } else {
-                fetchRandomCard();
+                fetchRandomCard(); // No images found, get another card
                 return;
             }
 
-            cardImage.src = imageUrl;
+            // Store face URLs in the dataset for easy access
+            cardImage.dataset.front = frontImageUrl || '';
+            cardImage.dataset.back = backImageUrl || '';
+
+            cardImage.src = frontImageUrl;
             cardImage.alt = cardData.name;
             cardImage.style.display = 'block';
+            cardImage.classList.add('fade-in'); // Add fade-in animation
 
-            cardInfo.innerHTML = `<a href="${cardData.scryfall_uri}" target="_blank" rel="noopener noreferrer">View ${cardData.name} on Scryfall</a>`;
+            // Add Scryfall link and Price info to the card-info div
+            const scryfallLink = document.createElement('a');
+            scryfallLink.href = cardData.scryfall_uri;
+            scryfallLink.target = '_blank';
+            scryfallLink.rel = 'noopener noreferrer';
+            scryfallLink.textContent = `View ${cardData.name} on Scryfall`;
+            cardInfo.prepend(scryfallLink); // Prepend to keep it above the flip button
+
+            // 4. Show Prices
+            const price = cardData.prices.usd || cardData.prices.usd_foil;
+            if (price) {
+                const priceText = document.createElement('p');
+                priceText.textContent = `Price: $${price}`;
+                cardInfo.prepend(priceText); // Prepend to keep it above the link
+            }
         }
         
         function displayError(message) {
@@ -240,9 +293,25 @@
             setTimeout(fetchRandomCard, 2000);
         }
 
+        function handleFlip() {
+            if (!cardImage.dataset.back) return; // Do nothing if there's no back face
+            
+            isFrontFace = !isFrontFace; // Toggle the state
+            cardImage.classList.remove('fade-in'); // Remove class to re-trigger animation
+            
+            // A tiny delay to allow the class removal to register before adding it again
+            setTimeout(() => {
+                cardImage.src = isFrontFace ? cardImage.dataset.front : cardImage.dataset.back;
+                cardImage.classList.add('fade-in');
+            }, 10);
+        }
+
+        // --- EVENT LISTENERS ---
         randomCardBtn.addEventListener('click', fetchRandomCard);
+        cardImage.addEventListener('click', fetchRandomCard); // 2. Click Card to Refresh
+        flipBtn.addEventListener('click', handleFlip);
         
-        fetchRandomCard();
+        fetchRandomCard(); // Load a card when the page first opens
 
     </script>
 </body>
