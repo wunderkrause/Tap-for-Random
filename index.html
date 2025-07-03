@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tap for Random</title>
+    <style>
+        :root {
+            --background-color: #1a1a1d;
+            --card-background: #2b2d42;
+            --text-color: #e0e0e0;
+            --button-bg: #4a4e69;
+            --button-hover-bg: #6b7092;
+            --link-color: #8d99ae;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            padding: 20px;
+            box-sizing: border-box;
+            /* Re-apply centering to the body itself */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        /* The container now manages the internal layout */
+        .container {
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+            /* Set a max-height relative to the viewport, allowing it to be centered */
+            max-height: 95vh; 
+            height: 800px; /* Provide a large default height for desktops */
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-display {
+            position: relative;
+            width: 100%;
+            flex-grow: 1; /* Key to preventing overlap: takes all remaining space */
+            display: flex;
+            justify-content: center;
+            min-height: 250px;
+        }
+
+        .header-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            flex-shrink: 0;
+        }
+
+        .tap-symbol {
+            width: 36px;
+            height: 36px;
+        }
+
+        h1 {
+            color: #ffffff;
+            margin: 0;
+            font-size: 2.5rem;
+        }
+
+        #random-card-btn {
+            background-color: var(--button-bg);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out, transform 0.1s ease;
+            margin-bottom: 2rem;
+            flex-shrink: 0;
+        }
+
+        #random-card-btn:hover {
+            background-color: var(--button-hover-bg);
+        }
+        
+        #random-card-btn:active {
+            transform: scale(0.98);
+        }
+
+        #card-image,
+        .loader,
+        #error-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        #card-info {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+        }
+
+        #card-image {
+            width: 350px;
+            max-width: 100%; 
+            height: auto; 
+            max-height: 95%;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            display: none;
+        }
+        
+        #card-info a {
+            color: var(--link-color);
+            text-decoration: none;
+            font-size: 1.1rem;
+        }
+
+        #card-info a:hover {
+            text-decoration: underline;
+        }
+
+        #error-message {
+            font-size: 1.5rem;
+            padding: 2rem;
+            box-sizing: border-box;
+            display: none;
+        }
+
+        .loader {
+            border: 4px solid var(--card-background);
+            border-top: 4px solid var(--button-hover-bg);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 480px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .tap-symbol {
+                width: 30px;
+                height: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        
+        <div class="header-container">
+            <h1>Tap for Random</h1>
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ6fFE5kS4ZztLqETZX3XqccPkkCG5I6amIzQ&s" alt="Tap Symbol" class="tap-symbol">
+        </div>
+
+        <button id="random-card-btn">Tap It!</button>
+
+        <div class="card-display">
+            <div class="loader" id="loader"></div>
+            <div id="error-message"></div>
+            <img id="card-image" src="" alt="Magic Card">
+            <div id="card-info"></div>
+        </div>
+    </div>
+
+    <script>
+        const randomCardBtn = document.getElementById('random-card-btn');
+        const cardImage = document.getElementById('card-image');
+        const cardInfo = document.getElementById('card-info');
+        const loader = document.getElementById('loader');
+        const errorMessage = document.getElementById('error-message');
+
+        async function fetchRandomCard() {
+            loader.style.display = 'block';
+            errorMessage.style.display = 'none';
+            cardImage.style.display = 'none';
+            cardInfo.innerHTML = '';
+            
+            const apiUrl = 'https://api.scryfall.com/cards/random';
+            
+            try {
+                const response = await fetch(apiUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`Scryfall API Error: ${response.statusText}`);
+                }
+                
+                const cardData = await response.json();
+                displayCard(cardData);
+
+            } catch (error) {
+                console.error("Failed to fetch card:", error);
+                displayError(error.message);
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        function displayCard(cardData) {
+            let imageUrl = '';
+            if (cardData.card_faces && cardData.card_faces[0].image_uris) {
+                imageUrl = cardData.card_faces[0].image_uris.normal;
+            } else if (cardData.image_uris) {
+                imageUrl = cardData.image_uris.normal;
+            } else {
+                fetchRandomCard();
+                return;
+            }
+
+            cardImage.src = imageUrl;
+            cardImage.alt = cardData.name;
+            cardImage.style.display = 'block';
+
+            cardInfo.innerHTML = `<a href="${cardData.scryfall_uri}" target="_blank" rel="noopener noreferrer">View ${cardData.name} on Scryfall</a>`;
+        }
+        
+        function displayError(message) {
+            cardImage.style.display = 'none';
+            cardInfo.innerHTML = '';
+            errorMessage.textContent = `Error: ${message}. Trying again...`;
+            errorMessage.style.display = 'block';
+            setTimeout(fetchRandomCard, 2000);
+        }
+
+        randomCardBtn.addEventListener('click', fetchRandomCard);
+        
+        fetchRandomCard();
+
+    </script>
+</body>
+</html>
